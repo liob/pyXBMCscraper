@@ -56,13 +56,32 @@ class MovieScraper(object):
         return buffer[dest]
     
     def search(self, name):
+        """ 
+        returns an array where each entry is a hit in the results:
+            [  {title: "Gladiator",
+                id: "98",
+                year: "2000",
+                url: "http://api.themoviedb.org/2.1/Movie.getInfo/$INFO[language]/xml/57983e31fb435df4df77afb854740ea9/98"}
+                {...},
+                ...
+        """
         url = self.__CreateSearchUrl__(name).strip()
         if url[0:1] == "<":
             urltree = fromstring(url)
             url = urltree.text
         page = self.__DownloadSearchPage__(url)
         results = self.__GetSearchResults__(page)
-        print results
+        results_xml = fromstring(results)
+        rv = []
+        for result in results_xml.findall("entity"):
+            rv.append({})
+            for tag in ["title", "id", "year", "url"]:
+                subelement = result.find(tag)
+                if subelement is not None:
+                    rv[-1][tag] = subelement.text
+                else:
+                    rv[-1][tag] = None
+        return rv
 
 def eval_regex(tree, buffer={}):
     """
