@@ -25,7 +25,7 @@ from exceptions import ValueError
 #tvshows_scraper = "metadata.tvdb.com"
 
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-scraper_dir = "../../scraper/"
+scraper_dir = "scraper/"
 
 class Movie(object):
     pass
@@ -246,6 +246,3 @@ def get_scraper_xml(scraper):
     scraper_xml.parse("%s/%s" % (my_scraper_dir, libname))
     return scraper_xml
 
-if __name__ == '__main__':
-   movieScraper = MovieScraper("metadata.themoviedb.org", "german")
-   movieScraper.search("Gladiator")
