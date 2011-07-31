@@ -17,8 +17,9 @@ __scraper_framework__ = "1.1"
 
 import os, re
 import logging
-import httplib, urllib
-from xml.etree.ElementTree import ElementTree, fromstring
+import urllib2
+from xml.etree.ElementTree import ElementTree as ElementTree
+from xml.etree.ElementTree import fromstring as ElementTree_fromstring
 from exceptions import ValueError
 
 #movie_scraper = "metadata.themoviedb.org"
@@ -31,6 +32,10 @@ class Movie(object):
     pass
 
 class MovieScraper(object):
+    
+    xml = None
+    language = None
+    
     def __init__(self, scraper, language):
         self.xml = get_scraper_xml(scraper)
         self.language = language
@@ -42,11 +47,11 @@ class MovieScraper(object):
         # buffer[1] is used to input the querystring
         buffer = eval_regex( CreateSearchUrl.find("RegExp"), buffer={1:querystring,} )
         logging.info("searchurl: %s" % buffer[dest])
-        return buffer[dest]
+        return URL.fromstring(buffer[dest])
     
     def __DownloadSearchPage__(self, url):
         logging.info("downloading search page: %s" % url)
-        return urllib.urlopen(url).read()
+        return url.open().read()
     
     def __GetSearchResults__(self, page):
         """ parses the returned page """
@@ -65,13 +70,10 @@ class MovieScraper(object):
                 {...},
                 ...
         """
-        url = self.__CreateSearchUrl__(name).strip()
-        if url[0:1] == "<":
-            urltree = fromstring(url)
-            url = urltree.text
+        url = self.__CreateSearchUrl__(name)
         page = self.__DownloadSearchPage__(url)
         results = self.__GetSearchResults__(page)
-        results_xml = fromstring(results)
+        results_xml = ElementTree_fromstring(results)
         rv = []
         for result in results_xml.findall("entity"):
             rv.append({})
@@ -83,6 +85,56 @@ class MovieScraper(object):
                     rv[-1][tag] = None
         return rv
 
+class URL(object):
+    """
+    URL handles xbmc <url> tags. It implements a generic interface with the following options:
+        url:   specifiy the url
+        spoof: the referrer url which should be send. This is sometimes needed for pages with direct linking protection.
+        post:  if the post attribute is present variables in the url will be send via POST
+    """
+    
+    spoof = None
+    post  = None
+    url   = None
+
+    @classmethod
+    def fromstring(cls, string):
+        """
+        create an URL instance from a given string.
+        The string may be plain 'http://host/path' or valid xml '<url spoof="">http://host/path</url>'
+        """
+        logging.debug("initializing URL instance with following string: %s" % string)
+        url = cls()
+        string = string.strip()
+        if string[0:4].lower() == "http":
+            # this is a plain url string
+            cls.__parseURL__(url, string)
+        else:
+            # we assume its valid xml
+            urltree = ElementTree_fromstring(string)
+            url.url = urltree.text
+            url.spoof = urltree.find("spoof")
+            url.post = urltree.find("post")
+        return url
+    
+    def __parseURL__(self, string):
+        self.url = string
+    
+    def open(self):
+        """ returns a file handler """
+        headers={
+                 'User-Agent' : 'Mozilla/5.0 (X11; U; Linux x86_64; en-US; rv:1.9.2.12) Gecko/20101027 Firefox/3.6.12',
+                 'Connection' : 'close'
+                 }
+        if self.spoof:
+            headers['Referer'] = self.spoof
+            
+        req = urllib2.Request(url=self.url,
+                              data=self.post,
+                              headers=headers)
+        logging.debug("opening url: %s   headers: %s    spoof: %s    post: %s" % (self.url, str(headers), self.spoof, self.post) )
+        return urllib2.urlopen(req)
+    
 def eval_regex(tree, buffer={}):
     """
     accepts RegExp Etree objects and evaluates them 
