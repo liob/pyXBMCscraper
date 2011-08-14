@@ -12,7 +12,7 @@ $INFO[language]
 """
 
 __version__ = '0.1-dev'
-__scraper_framework__ = "1.1"
+__scraper_framework__ = 1.1
 
 
 import os, re
@@ -22,23 +22,31 @@ from xml.etree.ElementTree import ElementTree as ElementTree
 from xml.etree.ElementTree import fromstring as ElementTree_fromstring
 from exceptions import ValueError
 
-#movie_scraper = "metadata.themoviedb.org"
-#tvshows_scraper = "metadata.tvdb.com"
-
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-scraper_dir = "scraper/"
 
 class Movie(object):
     pass
 
-class MovieScraper(object):
+class Scraper(object):
+    """
+    the scraper class provides a generic ground foundation, which is
+    required for all scrapers.
+    """
     
-    xml = None
-    language = None
+    xml = ElementTree()          #: holds the scraper regex xml tree
+    addonxml = ElementTree()     #: xml tree of addon.xml
+    settingsxml= ElementTree()   #: xml tree of resources/settings.xml
+    path = None                  #: filesystem path to scraper
     
-    def __init__(self, scraper, language):
-        self.xml = get_scraper_xml(scraper)
-        self.language = language
+    def __init__(self, scraperPath = None):
+        if scraperPath:
+            self.addonxml.parse( os.path.join(scraperPath, "addon.xml") )
+            xmlpath = self.addonxml.find("extension").attrib["library"]
+            self.xml.parse( os.path.join(scraperPath, xmlpath) )
+            self.settingsxml.parse( os.path.join(scraperPath, "resources/settings.xml") )
+        self.path = scraperPath
+
+class MovieScraper(Scraper):
     
     def __CreateSearchUrl__(self, querystring):
         """ generates a url for the given querystring """
@@ -134,10 +142,15 @@ class URL(object):
                               headers=headers)
         logging.debug("opening url: %s   headers: %s    spoof: %s    post: %s" % (self.url, str(headers), self.spoof, self.post) )
         return urllib2.urlopen(req)
+
+
+class Info(object):
+    """ holds information which is used when evaluating Regex """
+    
     
 def eval_regex(tree, buffer={}):
     """
-    accepts RegExp Etree objects and evaluates them 
+    evaluate a regex tree. This is the workhorse of this library.
         repeat="yes" -> will repeat the expression as long as there are matches
         noclean="1" -> will NOT strip html tags and special characters from field 1. Field can be 1 ... 9. By default, all fields are "cleaned"
         trim="1" -> trim white spaces of field 1. Field can be 1 ... 9
@@ -145,6 +158,12 @@ def eval_regex(tree, buffer={}):
     """
     
     def get_buffer_value(identifier):
+        """
+        read a buffer value specified by its identifier.
+        a identifier can be $$n or \n where n specifies the slot.
+        also it is possible to join multiple buffers. i.e.: $$1$$2
+        would return the values of slot 1+2.
+        """
         if identifier[0:1] == '\\':
             slot = int(identifier[1:])
             if slot in buffer:
@@ -170,6 +189,10 @@ def eval_regex(tree, buffer={}):
             raise ValueError
         
     def string2array(string):
+        """
+        converts a string in the format "one,to,three" 
+        to an array ["one","two","three"]
+        """
         rv = []
         for sub in string.split(","):
             sub = sub.strip()
@@ -179,11 +202,11 @@ def eval_regex(tree, buffer={}):
     def stripHTML(string):
         """
         strip html tags from string and convert special chars
-            '&' (Ampersand/kaufmännisches Und) wird zu '&amp;'.
-            '"' (doppeltes Anführungszeichen) wird zu '&quot;', wenn ENT_NOQUOTES nicht gesetzt ist.
-            ''' (einfaches Anführungszeichen) wird nur zu '&#039;', wenn ENT_QUOTES gesetzt ist.
-            '<' (kleiner als) wird zu '&lt;'
-            '>' (größer als) wird zu '&gt;'
+            '&' => '&amp;'
+            '"' => '&quot;'
+            ''' => '&#039;'
+            '<' => '&lt;'
+            '>' => '&gt;'
         """
         conv = [ ['&amp;','&'], ['&quot;','"'], ['&#039;',"'"], ['&lt;','<'], ['&gt;','>'] ]
         # first we need to get rid of the html tags
@@ -226,10 +249,6 @@ def eval_regex(tree, buffer={}):
                     if int(char) in trim:
                         ref = ref.strip()
                     result += ref
-                #elif char == "\\":
-                #    # we have an escaped backspace. this transforms in a normal backspace
-                #    escape = False
-                #    result += "\\"
                 else:
                     # the preceding \ appears to be a normal char
                     escape = False
@@ -305,15 +324,4 @@ def eval_regex(tree, buffer={}):
         buffer[dest] = ""
         
     return buffer
-
-    
-
-def get_scraper_xml(scraper):
-    my_scraper_dir = os.path.join(scraper_dir, scraper)
-    addon_xml = ElementTree()
-    addon_xml.parse("%s/addon.xml" % my_scraper_dir)
-    libname = addon_xml.find("extension").attrib["library"]
-    scraper_xml = ElementTree()
-    scraper_xml.parse("%s/%s" % (my_scraper_dir, libname))
-    return scraper_xml
 
