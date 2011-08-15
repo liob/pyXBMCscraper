@@ -24,8 +24,40 @@ from exceptions import ValueError
 
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
-class Movie(object):
+class SearchResult(object):
+    title = None
+    id = None
+    year = None
+    urls =[]
+    
+    def __init__(self):
+        self.urls = []
+
+class MovieSearchResult(SearchResult):
     pass
+
+class Media(object):
+    title         = None
+    releaseDate   = None
+    runtime       = None
+    rating        = None
+    votes         = None
+    genre         = []
+    
+class Movie(Media):
+    director  = None
+    top250    = None
+    mpaa      = None
+    tagline   = None
+    thumb     = None
+    credits   = None
+    outline   = None
+    plot      = None
+    actor     = []
+    
+    def __init__(self):
+        self.genre = []
+        self.actor = []
 
 class Scraper(object):
     """
@@ -88,9 +120,9 @@ class MovieScraper(Scraper):
             for tag in ["title", "id", "year", "url"]:
                 subelement = result.find(tag)
                 if subelement is not None:
-                    rv[-1][tag] = subelement.text
-                else:
-                    rv[-1][tag] = None
+                    setattr(rv[-1], tag, subelement.text)
+            for url in result.findall("url"):
+                rv[-1].urls.append(URL.fromstring(url.text))
         return rv
 
 class URL(object):

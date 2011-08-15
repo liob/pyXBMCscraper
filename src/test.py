@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-import pyXBMCscraper
+import XBMCscraper
 
-movieScraper = pyXBMCscraper.MovieScraper("metadata.themoviedb.org", "german")
+movieScraper = XBMCscraper.MovieScraper("./scraper/metadata.themoviedb.org")
 for movie in movieScraper.search("Gladiator"):
     print "%s  -  %s" % (movie["title"], str(movie["year"]))
     print "   URL: %s" % movie["url"]
