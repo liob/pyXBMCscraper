@@ -145,7 +145,7 @@ class MovieScraper(Scraper):
         results_xml = ElementTree_fromstring(results)
         rv = []
         for result in results_xml.findall("entity"):
-            rv.append(MovieSearchResult())
+            rv.append(SearchResult())
             for tag in ["title", "id", "year", "url"]:
                 subelement = result.find(tag)
                 if subelement is not None:
