@@ -10,6 +10,7 @@ multiple buffers ($$1$$2)
 $INFO[language]
 <url></url> spoof post
 """
+from orca.speech import __resolveACSS
 
 __version__ = '0.1-dev'
 __scraper_framework__ = 1.1
