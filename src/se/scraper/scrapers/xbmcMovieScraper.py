@@ -1,4 +1,8 @@
 from .xbmcScraper import xbmcScraper
+from ...engine.xbmc import eval_regex, URL
+
+import logging
+from xml.etree.ElementTree import fromstring as ElementTree_fromstring
 
 class xbmcMovieScraper(xbmcScraper):
     
@@ -8,7 +12,10 @@ class xbmcMovieScraper(xbmcScraper):
     def __CreateSearchUrl__(self, querystring):
         """ generates a url for the given querystring """
         CreateSearchUrl = self.xml.find("CreateSearchUrl")
-        dest = int( CreateSearchUrl.attrib["dest"] )
+        if CreateSearchUrl:
+            dest = int( CreateSearchUrl.attrib["dest"] )
+        else:
+            raise ValueError("could not find CreateSearchUrl")
         # buffer[1] is used to input the querystring
         buffer = eval_regex( CreateSearchUrl.find("RegExp"), buffer={1:querystring,} )
         logging.info("searchurl: %s" % buffer[dest])
@@ -41,11 +48,12 @@ class xbmcMovieScraper(xbmcScraper):
         results_xml = ElementTree_fromstring(results)
         rv = []
         for result in results_xml.findall("entity"):
-            rv.append(MovieSearchResult())
+            rv.append({})
+            rv[-1]["urls"] = []
             for tag in ["title", "id", "year", "url"]:
                 subelement = result.find(tag)
                 if subelement is not None:
-                    setattr(rv[-1], tag, subelement.text)
+                    rv[-1][tag] = subelement.text
             for url in result.findall("url"):
-                rv[-1].urls.append(URL.fromstring(url.text))
+                rv[-1]["urls"].append(URL.fromstring(url.text))
         return rv

@@ -15,24 +15,6 @@ __version__ = '0.1-dev'
 __scraper_framework__ = 1.1
 
 
-import os, re
 import logging
-#import urllib2
-from exceptions import ValueError
-
-import scraper
 
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-
-
-
-def getScraper(path = None):
-    """
-    returns the correct subclass instance of class Scraper for a given path
-    """
-    path = os.path.normpath(path)
-    addonxml = ElementTree()
-    addonxml.parse( os.path.join(path, "addon.xml") )
-    addonxml.find()
-    
-    

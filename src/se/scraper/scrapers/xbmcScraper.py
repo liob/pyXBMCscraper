@@ -1,6 +1,7 @@
 from .scraper import scraper
+from ...engine.xbmc import getScraper, mergeEtree
 
-from xml.etree.ElementTree import ElementTree as ElementTree
+from xml.etree.ElementTree import ElementTree, tostring
 from xml.etree.ElementTree import fromstring as ElementTree_fromstring
 import os
 import logging
@@ -20,6 +21,9 @@ class xbmcScraper(scraper):
     deps = []                    # contains the dependencies of the scraper as Scraper object
     
     def __init__(self, scraperPath = None):
+        self.xml = ElementTree()
+        self.addonxml = ElementTree()
+        self.settingsxml= ElementTree()
         self.requires = []
         self.deps = []
         if scraperPath:
@@ -27,7 +31,8 @@ class xbmcScraper(scraper):
             self.addonxml.parse( os.path.join(scraperPath, "addon.xml") )
             xmlpath = self.addonxml.find("extension").attrib["library"]
             self.xml.parse( os.path.join(scraperPath, xmlpath) )
-            self.settingsxml.parse( os.path.join(scraperPath, "resources/settings.xml") )
+            if os.path.exists(os.path.join(scraperPath, "resources/settings.xml")):
+                self.settingsxml.parse( os.path.join(scraperPath, "resources/settings.xml") )
             requires = self.addonxml.find("requires")
             if requires:
                 for require in requires.findall("import"):
@@ -45,10 +50,10 @@ class xbmcScraper(scraper):
         """ a customizable appendix to __init__ """
         
     def __resolve_deps__(self):
-        """ resolve import deps of the scraper """
+        """ resolve import dependencies of the scraper """
         for require in self.requires:
-            logging.info("importing scraper %s as dependency." % require["scraper"])
             if not require["scraper"] in ["xbmc.metadata",]:    # some deps are for xbmc only and are not scraper relevant
-                pass
-                #scraper = MovieScraper(os.path.join(self.basepath, require["scraper"]))
-                
+                logging.info("importing scraper %s as dependency." % require["scraper"])
+                scraper = getScraper(os.path.join(self.basepath, require["scraper"]))
+                scraper.__resolve_deps__()
+                self.xml._setroot( mergeEtree( self.xml.getroot(), scraper.xml.getroot() ) )

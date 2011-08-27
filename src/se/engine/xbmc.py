@@ -1,3 +1,43 @@
+import os
+import logging
+import re
+import urllib2
+from copy import deepcopy
+from xml.etree.ElementTree import ElementTree
+from xml.etree.ElementTree import fromstring as ElementTree_fromstring
+
+def getScraper(path = None):
+    """
+    returns the correct subclass instance of class xbmcScraper for a given path
+    """
+    from ..scraper.scrapers import xbmcMovieScraper, xbmcScraperLibrary
+    
+    assoc = {"xbmc.metadata.scraper.library": xbmcScraperLibrary.xbmcScraperLibrary,
+             "xbmc.metadata.scraper.movies": xbmcMovieScraper.xbmcMovieScraper,
+             }
+    path = os.path.normpath(path)
+    addonxml = ElementTree()
+    addonxml.parse( os.path.join(path, "addon.xml") )
+    for match in addonxml.findall("extension"):
+        if "library" in match.attrib:
+            return assoc[ match.attrib["point"] ](path)
+    raise
+            
+
+def mergeEtree(tree1, tree2):
+    """ take tree1 and tree2 and return a merged tree, where tree1 and tree2 are instances of ElementTree.Element """
+    mtree = deepcopy(tree1)
+    tree2 = deepcopy(tree2)
+    
+    for elementToMerge in tree2:
+        found = False
+        for element in mtree:
+            if elementToMerge.tag == element.tag:
+                found = True
+        if not found:
+            mtree.append(elementToMerge)
+    return mtree
+    
 
 
 def eval_regex(tree, buffer={}):
