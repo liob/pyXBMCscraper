@@ -155,6 +155,8 @@ def eval_regex(tree, buffer={}):
                     result += char 
         return result
     
+    def evalCustomFunct():
+        """ \<url[A-Z,a-z, ,\=,\=,\"]*>.*\<\/url\> """
 
     input = tree.attrib["input"]
     dest = tree.attrib["dest"]
