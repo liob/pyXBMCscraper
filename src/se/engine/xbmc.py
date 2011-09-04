@@ -24,6 +24,27 @@ def getScraper(path = None):
     raise
             
 
+def xml2dict(node):
+    """ convert a etree node to a python list """
+    rv = {}
+    if len(node) > 1:
+        rv[node.tag] = []
+        for subnode in node:
+            found = False
+            for item in rv[node.tag]:
+                print item.keys()
+                if subnode.tag in item.keys():
+                    item[subnode.tag].append(xml2dict(subnode)[subnode.tag][0])
+                    found = True
+            if not found:
+                rv[node.tag].append(xml2dict(subnode))
+    else:
+        value = node.text
+        if value.strip() == "":
+            value = None
+        rv[node.tag] = [value,]
+    return rv
+
 def mergeEtree(tree1, tree2):
     """ take tree1 and tree2 and return a merged tree, where tree1 and tree2 are instances of ElementTree.Element """
     mtree = deepcopy(tree1)
@@ -39,10 +60,18 @@ def mergeEtree(tree1, tree2):
     return mtree
     
 
+def gvRegex(subtree, tree, buffer={}):
+    """ evauluate the regex subtree and return the value in the dest buffer """
+    dest = int( subtree.attrib["dest"] )
+    regExp = subtree[0]
+    buffer = evalRegex(regExp, tree, buffer)
+    return buffer[dest]
+    
 
-def eval_regex(tree, buffer={}):
+def evalRegex(subtree, tree, buffer={}):
     """
-    evaluate a regex tree. This is the workhorse of this library.
+    evaluate a regex subtree. This is the workhorse of this library.
+    the complete tree is required to evaluate custom functions.
         repeat="yes" -> will repeat the expression as long as there are matches
         noclean="1" -> will NOT strip html tags and special characters from field 1. Field can be 1 ... 9. By default, all fields are "cleaned"
         trim="1" -> trim white spaces of field 1. Field can be 1 ... 9
@@ -68,7 +97,8 @@ def eval_regex(tree, buffer={}):
                 return buffer[slot]
             else:
                 return ""
-        raise ValueError
+        logging.warn("could not find identifier %s in buffer. returning \"\"" % identifier)
+        return ""
     
     def string2boolean(string):
         """ converts a given string to True or False """
@@ -155,19 +185,29 @@ def eval_regex(tree, buffer={}):
                     result += char 
         return result
     
-    def evalCustomFunct():
-        """ \<url[A-Z,a-z, ,\=,\=,\"]*>.*\<\/url\> """
+    def evalCustomFunct(string):
+        """ evaluate and expand the custom functions """
+        urlregex = re.compile(u"\<url[A-Z,a-z,0-9, ,\=,\=,\"]*?>.*?\<\/url\>", re.MULTILINE|re.DOTALL)
+        while True:
+            matchObj = urlregex.search(string)
+            if not matchObj:
+                # if no match was found break!
+                break
+            span = matchObj.span()
+            url = URL.fromstring(matchObj.group())
+            s = s[0:span[0]] + url.customFunction(tree) + s[span[1]:]
+    
 
-    input = tree.attrib["input"]
-    dest = tree.attrib["dest"]
+    input = subtree.attrib["input"]
+    dest = subtree.attrib["dest"]
     if dest[-1:] == "+":
         dest = int(dest[0:-1])
         dest_append = True
     else:
         dest = int(dest)
         dest_append = False
-    output = tree.attrib["output"]
-    exprObj = tree.find("expression")
+    output = subtree.attrib["output"]
+    exprObj = subtree.find("expression")
     expr = exprObj.text
     if expr == None:
         # if expr is not set it should match everything
@@ -189,8 +229,8 @@ def eval_regex(tree, buffer={}):
     else:
         trim = []
     
-    for regex in tree.findall("RegExp"):
-        buffer = eval_regex(regex, buffer)
+    for regex in subtree.findall("RegExp"):
+        buffer = evalRegex(regex, tree, buffer)
     
     logging.debug("evaluating with expr: \"%s\" \noutput: %s \nData: %s" % (expr, output, get_buffer_value(input)))
     eval = ""
@@ -220,12 +260,6 @@ def eval_regex(tree, buffer={}):
     return buffer
 
 
-def custom_function(fn, buffer={}, tree=None):
-    """
-    custom_function allows you to evaluate custom functions. fn is the function name as string.
-    """
-    
-
 
 class URL(object):
     """
@@ -235,9 +269,10 @@ class URL(object):
         post:  if the post attribute is present variables in the url will be send via POST
     """
     
-    spoof = None
-    post  = None
-    url   = None
+    spoof    = None
+    post     = None
+    url      = None
+    function = None
 
     @classmethod
     def fromstring(cls, string):
@@ -257,6 +292,8 @@ class URL(object):
             url.url = urltree.text
             url.spoof = urltree.find("spoof")
             url.post = urltree.find("post")
+            if "function" in urltree.attrib:
+                url.function = urltree.attrib["function"]
         return url
     
     def __parseURL__(self, string):
@@ -264,6 +301,7 @@ class URL(object):
     
     def open(self):
         """ returns a file handler """
+        logging.info("downloading URL: %s //spoof: %s post: %s" % (self.url, str(self.spoof), str(self.post)))
         headers={
                  'User-Agent' : 'Mozilla/5.0 (X11; U; Linux x86_64; en-US; rv:1.9.2.12) Gecko/20101027 Firefox/3.6.12',
                  'Connection' : 'close'
@@ -276,3 +314,9 @@ class URL(object):
                               headers=headers)
         logging.debug("opening url: %s   headers: %s    spoof: %s    post: %s" % (self.url, str(headers), self.spoof, self.post) )
         return urllib2.urlopen(req)
+    
+    def customFunction(self, tree):
+        """ evaluate the custom function of this url object """
+        cfunct = tree[self.function]
+        return gvRegex( cfunct, tree, buffer={1:self.open.read(),} )
+        

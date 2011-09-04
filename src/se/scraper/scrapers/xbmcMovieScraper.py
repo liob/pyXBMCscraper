@@ -1,5 +1,5 @@
 from .xbmcScraper import xbmcScraper
-from ...engine.xbmc import eval_regex, URL
+from ...engine.xbmc import gvRegex, URL, xml2dict
 
 import logging
 from xml.etree.ElementTree import fromstring as ElementTree_fromstring
@@ -12,25 +12,24 @@ class xbmcMovieScraper(xbmcScraper):
     def __CreateSearchUrl__(self, querystring):
         """ generates a url for the given querystring """
         CreateSearchUrl = self.xml.find("CreateSearchUrl")
-        if CreateSearchUrl:
-            dest = int( CreateSearchUrl.attrib["dest"] )
-        else:
+        if not CreateSearchUrl:
             raise ValueError("could not find CreateSearchUrl")
         # buffer[1] is used to input the querystring
-        buffer = eval_regex( CreateSearchUrl.find("RegExp"), buffer={1:querystring,} )
-        logging.info("searchurl: %s" % buffer[dest])
-        return URL.fromstring(buffer[dest])
+        rv = gvRegex( CreateSearchUrl, self.xml.getroot(), buffer={1:querystring,} )
+        logging.info("searchurl: %s" % rv)
+        return URL.fromstring(rv)
     
     def __DownloadSearchPage__(self, url):
-        logging.info("downloading search page: %s" % url)
         return url.open().read()
     
     def __GetSearchResults__(self, page):
         """ parses the returned page """
-        GetSearchResults = self.xml.find("GetSearchResults")
-        dest = int( GetSearchResults.attrib["dest"] )
-        buffer = eval_regex( GetSearchResults.find("RegExp"), buffer={1:page,} )
-        return buffer[dest]
+        root = self.xml.getroot()
+        return gvRegex( root.find("GetSearchResults"), root, buffer={1:page,} )
+    
+    def __GetDetails__(self, page):
+        root = self.xml.getroot()
+        return gvRegex( root.find("GetDetails"), root, buffer={1:page,} )
     
     def search(self, name):
         """ 
@@ -50,10 +49,15 @@ class xbmcMovieScraper(xbmcScraper):
         for result in results_xml.findall("entity"):
             rv.append({})
             rv[-1]["urls"] = []
-            for tag in ["title", "id", "year", "url"]:
+            for tag in ["title", "id", "year"]:
                 subelement = result.find(tag)
                 if subelement is not None:
                     rv[-1][tag] = subelement.text
             for url in result.findall("url"):
                 rv[-1]["urls"].append(URL.fromstring(url.text))
         return rv
+    
+    def info(self, searchResult):
+        info = self.__GetDetails__( searchResult["urls"][0].open().read() )
+        info = ElementTree_fromstring(info)
+        return xml2dict(info)

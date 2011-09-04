@@ -57,3 +57,8 @@ class xbmcScraper(scraper):
                 scraper = getScraper(os.path.join(self.basepath, require["scraper"]))
                 scraper.__resolve_deps__()
                 self.xml._setroot( mergeEtree( self.xml.getroot(), scraper.xml.getroot() ) )
+    
+    def search(self, name):
+        """ dummy """
+    
+    
